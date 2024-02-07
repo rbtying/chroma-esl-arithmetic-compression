@@ -60,5 +60,5 @@ size_t encode_raw_image(uint8_t *pBitmap, _bmp_s *bmp_infos,
                         uint8_t *output_bit_buffer, size_t max_output_size);
 
 size_t fill_header(uint8_t *output_bit_buffer, size_t payload_size, int height,
-                   int width, int compression_type, int color, int header_size,
+                   int width, int compression_type, bool color, int header_size,
                    uint16_t checksum);

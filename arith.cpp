@@ -309,7 +309,7 @@ size_t encode_raw_image(uint8_t *pBitmap, _bmp_s *bmp_infos,
 } /* encode_raw_image() */
 
 size_t fill_header(uint8_t *buffer_out, size_t compression_size, int height,
-                   int width, int compression_type, int color, int header_size,
+                   int width, int compression_type, bool color, int header_size,
                    uint16_t checksum) {
   memset(buffer_out, 0, header_size);
   // fill the output data so it can directly be send to the display

@@ -3,22 +3,15 @@
 
 #include "arith.h"
 
-int main(int argc, char **argv) {
-  std::cout << "Arithmetic coding test program" << std::endl;
+#define HEADER_SIZE 32
 
-  if (argc != 3) {
-    std::cerr << "Usage:" << std::endl;
-    std::cerr << "\t" << argv[0] << " <filename>.bmp <filename>.bin"
-              << std::endl;
-    return 1;
-  }
-
-  const std::string inputFile = argv[1];
-  std::ifstream inFile(inputFile, std::ios_base::binary);
+size_t compress_bmp(std::string &path, _bmp_s *bmp_info, uint8_t *out,
+                    size_t out_max_size) {
+  std::ifstream inFile(path, std::ios_base::binary);
 
   if (!inFile.is_open()) {
-    std::cerr << "Failed to open " << inputFile << std::endl;
-    return 1;
+    std::cerr << "Failed to open " << path << std::endl;
+    return -1;
   }
 
   inFile.seekg(0, std::ios_base::end);
@@ -44,7 +37,7 @@ int main(int argc, char **argv) {
   if (buffer[14] != 40 || buffer[15] != 0 || buffer[16] != 0 ||
       buffer[17] != 0) {
     std::cerr << "BMP DIB format is not BITMAPINFOHEADER" << std::endl;
-    return 1;
+    return -1;
   }
 
   int32_t width = *reinterpret_cast<int32_t *>(&buffer[18]);
@@ -70,7 +63,7 @@ int main(int argc, char **argv) {
   int32_t *colors = reinterpret_cast<int32_t *>(&buffer[color_table_start]);
   if (*colors != 0) {
     std::cout << "First color is not 0x0000000!" << std::endl;
-    return 1;
+    return -1;
   }
 
   // Row size in bytes (rounded up)
@@ -80,29 +73,54 @@ int main(int argc, char **argv) {
   std::cout << "pixel data starts at offset " << offset << " with stride of "
             << stride << " (bsize=" << bsize << ")" << std::endl;
 
-  _bmp_s bmp_info;
-  bmp_info.height = (height > 0) ? height : -height;
-  bmp_info.width = width;
-  bmp_info.offset = offset;
-  bmp_info.stride = stride;
-  bmp_info.bTopDown = height < 0;
-
-  uint8_t out[65336];
+  bmp_info->height = (height > 0) ? height : -height;
+  bmp_info->width = width;
+  bmp_info->offset = offset;
+  bmp_info->stride = stride;
+  bmp_info->bTopDown = height < 0;
 
   size_t s = encode_raw_image(reinterpret_cast<uint8_t *>(buffer.data()),
-                              &bmp_info, &out[32], 65336 - 32 - 7);
+                              bmp_info, &out[32], out_max_size - 32 - 7);
+  return s;
+}
+
+int main(int argc, char **argv) {
+  std::cout << "Arithmetic coding compression program" << std::endl;
+
+  if (argc != 3 && argc != 4) {
+    std::cerr << "Usage:" << std::endl;
+    std::cerr << "\t" << argv[0] << " <filename>.bmp <output>.bin" << std::endl;
+    std::cerr << "\t" << argv[0]
+              << " <filename>.bmp <filename2>.bmp <output>.bin" << std::endl;
+    return 1;
+  }
+
+  uint8_t out[65536];
+
+  _bmp_s bmp_info;
+
+  std::string p = argv[1];
+  size_t s = compress_bmp(p, &bmp_info, out, sizeof(out) - HEADER_SIZE - 7);
+  if (argc == 4) {
+    p = argv[2];
+    s += compress_bmp(p, &bmp_info, out, sizeof(out) - HEADER_SIZE - 7 - s);
+  }
+  // header size is 32 for chroma74, 30 for chroma29
+  // checksum can always be zero.
+  size_t total_size = fill_header(out, s, bmp_info.height, bmp_info.width, 2,
+                                  argc == 4, HEADER_SIZE, 0);
+
   std::cout << "Compressed size: " << s << std::endl;
-  size_t total_size = fill_header(out, s, height, width, 2, 0, 32, 0);
   std::cout << "Total size: " << total_size << std::endl;
 
   uint32_t x = 0;
   for (uint32_t i = 0; i < total_size; ++i) {
-    x = (x + x ^ buffer[i]);
+    x = (x + x ^ out[i]);
   }
   std::cout << "XOR hash: " << x << std::endl;
 
   std::ofstream fout;
-  fout.open(argv[2], std::ios::binary | std::ios::out);
+  fout.open(argv[argc - 1], std::ios::binary | std::ios::out);
   fout.write(reinterpret_cast<char *>(out), total_size);
   fout.close();
 
