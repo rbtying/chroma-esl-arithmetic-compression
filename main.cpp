@@ -102,6 +102,9 @@ int main(int argc, char **argv) {
 
   std::string p = argv[1];
   size_t s = compress_bmp(p, &bmp_info, out, sizeof(out) - HEADER_SIZE - 7);
+  if (s == -1) {
+      return 1;
+  }
   if (argc == 4) {
     p = argv[2];
     s += compress_bmp(p, &bmp_info, out, sizeof(out) - HEADER_SIZE - 7 - s);
